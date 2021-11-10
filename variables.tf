@@ -203,6 +203,12 @@ variable "ec2_prv_app_web_name_02" {
   default     = "three_tier-prv_app-web_02"
 }
 
+variable "tag_ec2_ssm_managed_instance" {
+  description = "The tag to identify if the EC2 instance is SSM enabled"
+  type        = string
+  default     = "true"
+}
+
 variable "sg_pub_elb_web_name" {
   description = "The security group Name tag for the public ELB (webserver)"
   type        = string
@@ -220,3 +226,28 @@ variable "elb_pub_web_name" {
   type        = string
   default     = "elb-three-tier-pub-web"
 }
+
+variable "profile_ec2_prv_app_web_name" {
+  description = "The name of the instance profile for the private EC2 instances (webserver)"
+  type        = string
+  default     = "profile_ec2_prv_app_web"
+}
+
+variable "role_ec2_prv_app_web_name" {
+  description = "The name of the IAM role for the private EC2 instances (webserver)"
+  type        = string
+  default     = "ec2-prv_app-web-role"
+}
+
+variable "policy_allow_aws_ssm_session_manager_name" {
+  description = "The name of the IAM policy for role to be used by private EC2 instances (webserver)"
+  type        = string
+  default     = "allow-aws_ssm-session_manager-policy"
+}
+
+variable "policy_allow_aws_ssm_session_manager_description" {
+  description = "The description of the IAM policy for role to be used by private EC2 instances (webserver)"
+  type        = string
+  default     = "Allows AWS SSM Session Manager"
+}
+

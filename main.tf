@@ -428,7 +428,7 @@ resource "aws_security_group" "sg_prvapp_web" {
   ]
 
   tags = {
-    Name = var.sg_prv_app_web_name
+    Name       = var.sg_prv_app_web_name
     created_by = local.aws_caller_identity_arn
   }
 }
@@ -453,6 +453,7 @@ resource "aws_instance" "ec2_prv_app_web_01" {
   subnet_id              = aws_subnet.subnet_prv_app_1a.id
   vpc_security_group_ids = [aws_security_group.sg_prvapp_web.id]
   key_name               = var.ec2_key_pair
+  iam_instance_profile   = aws_iam_instance_profile.profile_ec2_prv_app_web.name
 
   root_block_device {
     delete_on_termination = true
@@ -475,9 +476,9 @@ resource "aws_instance" "ec2_prv_app_web_01" {
   EOF
 
   tags = {
-    Name = var.ec2_prv_app_web_name_01
-    created_by = local.aws_caller_identity_arn
-    ssm_managed_instance = "true"
+    Name                 = var.ec2_prv_app_web_name_01
+    created_by           = local.aws_caller_identity_arn
+    ssm_managed_instance = var.tag_ec2_ssm_managed_instance
   }
 }
 
@@ -489,7 +490,8 @@ resource "aws_instance" "ec2_prv_app_web_02" {
   subnet_id              = aws_subnet.subnet_prv_app_1b.id
   vpc_security_group_ids = [aws_security_group.sg_prvapp_web.id]
   key_name               = var.ec2_key_pair
-  
+  iam_instance_profile   = aws_iam_instance_profile.profile_ec2_prv_app_web.name
+
   root_block_device {
     delete_on_termination = true
     encrypted             = true
@@ -513,7 +515,7 @@ resource "aws_instance" "ec2_prv_app_web_02" {
   tags = {
     Name                 = var.ec2_prv_app_web_name_02
     created_by           = local.aws_caller_identity_arn
-    ssm_managed_instance = "true"
+    ssm_managed_instance = var.tag_ec2_ssm_managed_instance
   }
 }
 
@@ -563,7 +565,7 @@ resource "aws_security_group" "sg_pubelb_web" {
   ]
 
   tags = {
-    Name = var.sg_pub_elb_web_name
+    Name       = var.sg_pub_elb_web_name
     created_by = local.aws_caller_identity_arn
   }
 }
@@ -597,7 +599,79 @@ resource "aws_elb" "elb_pubelb_web" {
   connection_draining_timeout = 400
 
   tags = {
-    Name = var.elb_pub_web_name
+    Name       = var.elb_pub_web_name
     created_by = local.aws_caller_identity_arn
   }
+}
+
+
+#########################################################
+########## AWS SSM SESSION MANAGER PERMISSIONS ##########
+#########################################################
+
+#Create the IAM policy that allows session manager connectivity
+resource "aws_iam_policy" "policy_allow_aws_ssm_session_manager" {
+  name        = var.policy_allow_aws_ssm_session_manager_name
+  description = var.policy_allow_aws_ssm_session_manager_description
+
+  policy = jsonencode(
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": [
+            "ssm:UpdateInstanceInformation",
+            "ssmmessages:CreateControlChannel",
+            "ssmmessages:CreateDataChannel",
+            "ssmmessages:OpenControlChannel",
+            "ssmmessages:OpenDataChannel"
+          ],
+          "Resource": "*"
+        },
+        {
+          "Effect": "Allow",
+          "Action": [
+            "s3:GetEncryptionConfiguration"
+          ],
+          "Resource": "*"
+        }
+      ]
+    }
+  )
+
+  tags = {
+    Name       = var.policy_allow_aws_ssm_session_manager_name
+    created_by = local.aws_caller_identity_arn
+  }
+}
+
+#Create the data to be used as trust policy for the role
+data "aws_iam_policy_document" "policy_ec2_assume_role" {
+  statement {
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["ec2.amazonaws.com"]
+    }
+  }
+}
+
+#Create the IAM role for the private EC2 instances (webserver)
+resource "aws_iam_role" "role_ec2_prv_app_web" {
+  name                = var.role_ec2_prv_app_web_name
+  assume_role_policy  = data.aws_iam_policy_document.policy_ec2_assume_role.json
+  managed_policy_arns = [aws_iam_policy.policy_allow_aws_ssm_session_manager.arn]
+
+  tags = {
+    Name       = var.role_ec2_prv_app_web_name
+    created_by = local.aws_caller_identity_arn
+  }
+}
+
+#Create the IAM instance profile for the private EC2 instances (webserver)
+resource "aws_iam_instance_profile" "profile_ec2_prv_app_web" {
+  name = var.profile_ec2_prv_app_web_name
+  role = aws_iam_role.role_ec2_prv_app_web.name
 }
