@@ -23,6 +23,9 @@ locals {
 #Get the user ARN of who invoked the creation of resources
 data "aws_caller_identity" "current" {}
 
+################################################
+########## CREATING THE VPC RESOURCES ##########
+################################################
 
 #Create the VPC
 resource "aws_vpc" "vpc_main" {
@@ -251,6 +254,7 @@ resource "aws_route_table" "rtb_prv_app_1b" {
   }
 }
 
+
 #Create the private application subnets: prv_app_1a, prv_app_1b
 resource "aws_subnet" "subnet_prv_app_1a" {
   vpc_id            = aws_vpc.vpc_main.id
@@ -350,4 +354,250 @@ resource "aws_route_table_association" "rtbassoc_prv_db_1b" {
   route_table_id = aws_route_table.rtb_prv_db_1b.id
 
   depends_on = [aws_route_table.rtb_prv_db_1b]
+}
+
+################################################
+########## CREATING THE EC2 RESOURCES ##########
+################################################
+
+#Create the security group for private EC2 instances (webserver)
+resource "aws_security_group" "sg_prvapp_web" {
+  name        = var.sg_prv_app_web_name
+  description = var.sg_prv_app_description
+  vpc_id      = aws_vpc.vpc_main.id
+
+  ingress = [
+    {
+      description      = "Allow HTTP from VPC CIDR"
+      from_port        = 80
+      to_port          = 80
+      protocol         = "tcp"
+      cidr_blocks      = [var.vpc_cidr_block]
+      ipv6_cidr_blocks = []
+      prefix_list_ids  = []
+      security_groups  = []
+      self             = false
+    },
+    {
+      description      = "Allow HTTPS from VPC CIDR"
+      from_port        = 443
+      to_port          = 443
+      protocol         = "tcp"
+      cidr_blocks      = [var.vpc_cidr_block]
+      ipv6_cidr_blocks = []
+      prefix_list_ids  = []
+      security_groups  = []
+      self             = false
+    }
+  ]
+
+  egress = [
+    {
+      description      = "Allow outbound all traffic within the VPC"
+      from_port        = 0
+      to_port          = 0
+      protocol         = "-1"
+      cidr_blocks      = [var.vpc_cidr_block]
+      ipv6_cidr_blocks = []
+      prefix_list_ids  = []
+      security_groups  = []
+      self             = false
+    },
+    {
+      description      = "Allow outbound HTTP traffic to the internet"
+      from_port        = 80
+      to_port          = 80
+      protocol         = "tcp"
+      cidr_blocks      = ["0.0.0.0/0"]
+      ipv6_cidr_blocks = []
+      prefix_list_ids  = []
+      security_groups  = []
+      self             = false
+    },
+    {
+      description      = "Allow outbound HTTPS traffic to the internet"      
+      from_port        = 443
+      to_port          = 443
+      protocol         = "tcp"
+      cidr_blocks      = ["0.0.0.0/0"]
+      ipv6_cidr_blocks = []
+      prefix_list_ids  = []
+      security_groups  = []
+      self             = false
+    }
+  ]
+
+  tags = {
+    Name = var.sg_prv_app_web_name
+    created_by = local.aws_caller_identity_arn
+  }
+}
+
+
+# Get latest Amazon Linux AMI
+data "aws_ami" "ami_amazon_linux_2" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm*"]
+  }
+}
+
+
+#Create the EC2 instance (webserver) in the private application subnet 1a - primary
+resource "aws_instance" "ec2_prv_app_web_01" {
+  ami                    = data.aws_ami.ami_amazon_linux_2.id
+  instance_type          = var.ec2_prv_app_web_instance_type
+  subnet_id              = aws_subnet.subnet_prv_app_1a.id
+  vpc_security_group_ids = [aws_security_group.sg_prvapp_web.id]
+  key_name               = var.ec2_key_pair
+
+  root_block_device {
+    delete_on_termination = true
+    encrypted             = true
+    volume_size           = 50
+    volume_type           = "gp2"
+  }
+
+  user_data = <<EOF
+    #!/bin/bash
+    sudo yum update -y
+    sudo amazon-linux-extras enable epel
+    sudo yum install epel-release -y
+    sudo yum install nginx -y
+    sudo systemctl start nginx
+    sudo systemctl enable nginx
+    sudo systemctl start amazon-ssm-agent
+    sudo systemctl enable amazon-ssm-agent
+    sudo reboot
+  EOF
+
+  tags = {
+    Name = var.ec2_prv_app_web_name_01
+    created_by = local.aws_caller_identity_arn
+    ssm_managed_instance = "true"
+  }
+}
+
+
+#Create the EC2 instance (webserver) in the private application subnet 1b - secondary
+resource "aws_instance" "ec2_prv_app_web_02" {
+  ami                    = data.aws_ami.ami_amazon_linux_2.id
+  instance_type          = var.ec2_prv_app_web_instance_type
+  subnet_id              = aws_subnet.subnet_prv_app_1b.id
+  vpc_security_group_ids = [aws_security_group.sg_prvapp_web.id]
+  key_name               = var.ec2_key_pair
+  
+  root_block_device {
+    delete_on_termination = true
+    encrypted             = true
+    volume_size           = 50
+    volume_type           = "gp2"
+  }
+
+  user_data = <<EOF
+    #!/bin/bash
+    sudo yum update -y
+    sudo amazon-linux-extras enable epel
+    sudo yum install epel-release -y
+    sudo yum install nginx -y
+    sudo systemctl start nginx
+    sudo systemctl enable nginx
+    sudo systemctl start amazon-ssm-agent
+    sudo systemctl enable amazon-ssm-agent
+    sudo reboot
+  EOF
+
+  tags = {
+    Name                 = var.ec2_prv_app_web_name_02
+    created_by           = local.aws_caller_identity_arn
+    ssm_managed_instance = "true"
+  }
+}
+
+#Create the security group for public ELB
+resource "aws_security_group" "sg_pubelb_web" {
+  name        = var.sg_pub_elb_web_name
+  description = var.sg_pub_elb_web_description
+  vpc_id      = aws_vpc.vpc_main.id
+
+  ingress = [
+    {
+      description      = "Allow HTTP from public internet"
+      from_port        = 80
+      to_port          = 80
+      protocol         = "tcp"
+      cidr_blocks      = ["0.0.0.0/0"]
+      ipv6_cidr_blocks = []
+      prefix_list_ids  = []
+      security_groups  = []
+      self             = false
+    },
+    {
+      description      = "Allow HTTPS from public internet"
+      from_port        = 443
+      to_port          = 443
+      protocol         = "tcp"
+      cidr_blocks      = ["0.0.0.0/0"]
+      ipv6_cidr_blocks = []
+      prefix_list_ids  = []
+      security_groups  = []
+      self             = false
+    }
+  ]
+
+  egress = [
+    {
+      description      = "Allow outbound all traffic within the VPC"
+      from_port        = 0
+      to_port          = 0
+      protocol         = "-1"
+      cidr_blocks      = [var.vpc_cidr_block]
+      ipv6_cidr_blocks = []
+      prefix_list_ids  = []
+      security_groups  = []
+      self             = false
+    }
+  ]
+
+  tags = {
+    Name = var.sg_pub_elb_web_name
+    created_by = local.aws_caller_identity_arn
+  }
+}
+
+
+#Create the ELB 
+resource "aws_elb" "elb_pubelb_web" {
+  name            = var.elb_pub_web_name
+  subnets         = [aws_subnet.subnet_pub_1a.id, aws_subnet.subnet_pub_1b.id]
+  security_groups = [aws_security_group.sg_pubelb_web.id]
+
+  listener {
+    instance_port     = 80
+    instance_protocol = "http"
+    lb_port           = 80
+    lb_protocol       = "http"
+  }
+
+  health_check {
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+    timeout             = 3
+    target              = "HTTP:80/"
+    interval            = 30
+  }
+
+  instances                   = [aws_instance.ec2_prv_app_web_01.id, aws_instance.ec2_prv_app_web_02.id]
+  cross_zone_load_balancing   = true
+  idle_timeout                = 400
+  connection_draining         = true
+  connection_draining_timeout = 400
+
+  tags = {
+    Name = var.elb_pub_web_name
+    created_by = local.aws_caller_identity_arn
+  }
 }

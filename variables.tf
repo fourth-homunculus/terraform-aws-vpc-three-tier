@@ -146,23 +146,77 @@ variable "subnet_prv_db_1b_cidr" {
 variable "eip_natgw_pub_1a_name" {
   description = "The EIP Name tag for NAT Gateway in public subnet 1a"
   type        = string
-  default     = "eip-natgw-pub_1a"
+  default     = "eip--three_tier-natgw-pub_1a"
 }
 
 variable "eip_natgw_pub_1b_name" {
   description = "The EIP Name tag for NAT Gateway in public subnet 1b"
   type        = string
-  default     = "eip-natgw-pub_1b"
+  default     = "eip-three_tier-natgw-pub_1b"
 }
 
 variable "natgw_pub_1a_name" {
   description = "The EIP Name tag for NAT Gateway in public subnet 1b"
   type        = string
-  default     = "natgw-pub_1a"
+  default     = "natgw-three_tier-pub_1a"
 }
 
 variable "natgw_pub_1b_name" {
   description = "The EIP Name tag for NAT Gateway in public subnet 1b"
   type        = string
-  default     = "natgw-pub_1b"
+  default     = "natgw-three_tier-pub_1b"
+}
+
+variable "sg_prv_app_web_name" {
+  description = "The security group Name tag for the private EC2 instances (webserver)"
+  type        = string
+  default     = "secgrp-three_tier-prv_app-web"
+}
+
+variable "sg_prv_app_description" {
+  description = "The description of the security group for the private application EC2 instances (webserver)"
+  type        = string
+  default     = "Security group for private application EC2 instances (webserver)"
+}
+
+variable "ec2_prv_app_web_instance_type" {
+  description = "The instance type for the private EC2 instances (webserver)"
+  type        = string
+  default     = "t2.micro"
+}
+
+variable "ec2_key_pair" {
+  description = "The key pair for the EC2 instances"
+  type        = string
+  default     = "kp-terraform-aws-dev"
+}
+
+variable "ec2_prv_app_web_name_01" {
+  description = "The Name tag for the private EC2 instances (webserver) - primary"
+  type        = string
+  default     = "three_tier-prv_app-web_01"
+}
+
+variable "ec2_prv_app_web_name_02" {
+  description = "The Name tag for the private EC2 instances (webserver) - secondary"
+  type        = string
+  default     = "three_tier-prv_app-web_02"
+}
+
+variable "sg_pub_elb_web_name" {
+  description = "The security group Name tag for the public ELB (webserver)"
+  type        = string
+  default     = "secgrp-three_tier-pub_elb-web"
+}
+
+variable "sg_pub_elb_web_description" {
+  description = "The description of the security group for the public ELB (webserver)"
+  type        = string
+  default     = "Security group for public ELB (webserver)"
+}
+
+variable "elb_pub_web_name" {
+  description = "The Name tag for the public ELB (webserver)"
+  type        = string
+  default     = "elb-three-tier-pub-web"
 }
