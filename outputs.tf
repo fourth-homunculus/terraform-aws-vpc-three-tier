@@ -87,3 +87,13 @@ output "elb-pub-web-dns_name" {
   description = "The DNS name of the public ELB (webserver)"
   value       = aws_elb.elb_pubelb_web.dns_name
 }
+
+output "policy-allow_ssm-session_manager-arn"  {
+  description = "The ARN of the IAM policy for role to be used by private EC2 instances (webserver)"
+  value       = aws_iam_policy.policy_allow_aws_ssm_session_manager.arn
+}
+
+output role-ec2_prv_app-web-arn {
+  description = "The ARN of the IAM role for the private EC2 instances (webserver)"
+  value       = aws_iam_role.role_ec2_prv_app_web.arn
+}
